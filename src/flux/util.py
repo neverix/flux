@@ -4,7 +4,6 @@ from dataclasses import dataclass
 import torch
 from einops import rearrange
 from huggingface_hub import hf_hub_download
-from imwatermark import WatermarkEncoder
 from safetensors.torch import load_file as load_sft
 
 from flux.model import Flux, FluxParams
@@ -198,4 +197,4 @@ class WatermarkEmbedder:
 WATERMARK_MESSAGE = 0b001010101111111010000111100111001111010100101110
 # bin(x)[2:] gives bits of x as str, use int to convert them to 0/1
 WATERMARK_BITS = [int(bit) for bit in bin(WATERMARK_MESSAGE)[2:]]
-embed_watermark = WatermarkEmbedder(WATERMARK_BITS)
+embed_watermark = None  # WatermarkEmbedder(WATERMARK_BITS)
