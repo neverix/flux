@@ -87,6 +87,8 @@ class Flux(nn.Module):
         if img.ndim != 3 or txt.ndim != 3:
             raise ValueError("Input img and txt tensors must have 3 dimensions.")
 
+        yield ("pre_img_in", dict(img=img))
+
         # running on sequences img
         img = self.img_in(img)
         vec = self.time_in(timestep_embedding(timesteps, 256))
@@ -100,13 +102,21 @@ class Flux(nn.Module):
         ids = torch.cat((txt_ids, img_ids), dim=1)
         pe = self.pe_embedder(ids)
 
+
+        yield ("pre_double", dict(img=img, txt=txt, vec=vec, pe=pe))
+
         for block in self.double_blocks:
+            yield ("double_block", dict(img=img, txt=txt, vec=vec, pe=pe))
             img, txt = block(img=img, txt=txt, vec=vec, pe=pe)
 
         img = torch.cat((txt, img), 1)
+        yield ("pre_single", dict(data=img))
         for block in self.single_blocks:
+            yield ("single_block", dict(img=img, vec=vec, pe=pe))
             img = block(img, vec=vec, pe=pe)
         img = img[:, txt.shape[1] :, ...]
-
+        
+        yield ("pre_final", dict(data=img))
         img = self.final_layer(img, vec)  # (N, T, patch_size ** 2 * out_channels)
-        return img
+        # return img
+        yield ("output", dict(img=img))

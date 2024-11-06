@@ -16,12 +16,14 @@ class EmbedND(nn.Module):
         self.axes_dim = axes_dim
 
     def forward(self, ids: Tensor) -> Tensor:
+        print("ids.shape: ", ids.shape)
         n_axes = ids.shape[-1]
         emb = torch.cat(
             [rope(ids[..., i], self.axes_dim[i], self.theta) for i in range(n_axes)],
             dim=-3,
         )
 
+        print("emb.shape: ", emb.shape)
         return emb.unsqueeze(1)
 
 
