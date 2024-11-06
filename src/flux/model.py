@@ -105,9 +105,20 @@ class Flux(nn.Module):
 
         yield ("pre_double", dict(img=img, txt=txt, vec=vec, pe=pe))
 
-        for block in self.double_blocks:
-            yield ("double_block", dict(img=img, txt=txt, vec=vec, pe=pe))
-            img, txt = block(img=img, txt=txt, vec=vec, pe=pe)
+        for i, block in enumerate(self.double_blocks):
+            for tag, data in block(img=img, txt=txt, vec=vec, pe=pe):
+                if i == 0:
+                    t = tag
+                    if t:
+                        t = "_" + t
+                    yield ("first_double" + t, data)
+                if tag == "":
+                    img, txt = data["img"], data["txt"]
+                t = tag
+                if t:
+                    t = "." + t
+                yield (f"double_block.{i}{t}", data)
+
 
         img = torch.cat((txt, img), 1)
         yield ("pre_single", dict(data=img))

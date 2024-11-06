@@ -167,6 +167,8 @@ class DoubleStreamBlock(nn.Module):
         img_qkv = self.img_attn.qkv(img_modulated)
         img_q, img_k, img_v = rearrange(img_qkv, "B L (K H D) -> K B H L D", K=3, H=self.num_heads)
         img_q, img_k = self.img_attn.norm(img_q, img_k, img_v)
+        img_qkv = dict(img_q=img_q, img_k=img_k, img_v=img_v)
+        yield ("img_qkv", img_qkv)
 
         # prepare txt for attention
         txt_modulated = self.txt_norm1(txt)
@@ -174,6 +176,7 @@ class DoubleStreamBlock(nn.Module):
         txt_qkv = self.txt_attn.qkv(txt_modulated)
         txt_q, txt_k, txt_v = rearrange(txt_qkv, "B L (K H D) -> K B H L D", K=3, H=self.num_heads)
         txt_q, txt_k = self.txt_attn.norm(txt_q, txt_k, txt_v)
+        yield ("txt_qkv", dict(txt_q=txt_q, txt_k=txt_k, txt_v=txt_v))
 
         # run actual attention
         q = torch.cat((txt_q, img_q), dim=2)
@@ -181,14 +184,18 @@ class DoubleStreamBlock(nn.Module):
         v = torch.cat((txt_v, img_v), dim=2)
 
         attn = attention(q, k, v, pe=pe)
+        yield ("attn", dict(attn=attn))
         txt_attn, img_attn = attn[:, : txt.shape[1]], attn[:, txt.shape[1] :]
 
         # calculate the img bloks
         img = img + img_mod1.gate * self.img_attn.proj(img_attn)
+        yield ("img_gated", dict(img=img))
         img = img + img_mod2.gate * self.img_mlp((1 + img_mod2.scale) * self.img_norm2(img) + img_mod2.shift)
+        yield ("img_mlp_gated", dict(img=img))
 
         # calculate the txt bloks
         txt = txt + txt_mod1.gate * self.txt_attn.proj(txt_attn)
+        yield ("txt_gated", dict(txt=txt))
         txt = txt + txt_mod2.gate * self.txt_mlp((1 + txt_mod2.scale) * self.txt_norm2(txt) + txt_mod2.shift)
         return img, txt
 
