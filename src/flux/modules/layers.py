@@ -236,6 +236,7 @@ class SingleStreamBlock(nn.Module):
     def forward(self, x: Tensor, vec: Tensor, pe: Tensor) -> Tensor:
         mod, _ = self.modulation(vec)
         x_mod = (1 + mod.scale) * self.pre_norm(x) + mod.shift
+        yield ("norm", dict(x=x_mod))
         qkv, mlp = torch.split(self.linear1(x_mod), [3 * self.hidden_size, self.mlp_hidden_dim], dim=-1)
 
         q, k, v = rearrange(qkv, "B L (K H D) -> K B H L D", K=3, H=self.num_heads)
@@ -243,9 +244,14 @@ class SingleStreamBlock(nn.Module):
 
         # compute attention
         attn = attention(q, k, v, pe=pe)
+        yield ("attn_pre", dict(attn_pre=attn))
+        mlp= self.mlp_act(mlp)
+        yield ("mlp_pre", dict(mlp_pre=mlp))
         # compute activation in mlp stream, cat again and run second linear layer
-        output = self.linear2(torch.cat((attn, self.mlp_act(mlp)), 2))
-        return x + mod.gate * output
+        output = self.linear2(torch.cat((attn, mlp), 2))
+        output = x + mod.gate * output
+        yield ("out", dict(out=output))
+        return output
 
 
 class LastLayer(nn.Module):
