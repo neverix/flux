@@ -160,10 +160,17 @@ class DoubleStreamBlock(nn.Module):
     def forward(self, img: Tensor, txt: Tensor, vec: Tensor, pe: Tensor) -> tuple[Tensor, Tensor]:
         img_mod1, img_mod2 = self.img_mod(vec)
         txt_mod1, txt_mod2 = self.txt_mod(vec)
+        yield ("modulations", dict(img_mod1_shift=img_mod1.shift, img_mod1_scale=img_mod1.scale,
+                                   img_mod1_gate=img_mod1.gate, img_mod2_shift=img_mod2.shift,
+                                   img_mod2_scale=img_mod2.scale, img_mod2_gate=img_mod2.gate,
+                                   txt_mod1_shift=txt_mod1.shift, txt_mod1_scale=txt_mod1.scale,
+                                   txt_mod1_gate=txt_mod1.gate, txt_mod2_shift=txt_mod2.shift,
+                                   txt_mod2_scale=txt_mod2.scale, txt_mod2_gate=txt_mod2.gate))
 
         # prepare image for attention
-        img_modulated = self.img_norm1(img)
-        img_modulated = (1 + img_mod1.scale) * img_modulated + img_mod1.shift
+        img_normed = self.img_norm1(img)
+        img_modulated = (1 + img_mod1.scale) * img_normed + img_mod1.shift
+        yield ("img_mod", dict(img_normed=img_normed, img_modulated=img_modulated))
         img_qkv = self.img_attn.qkv(img_modulated)
         img_q, img_k, img_v = rearrange(img_qkv, "B L (K H D) -> K B H L D", K=3, H=self.num_heads)
         img_q, img_k = self.img_attn.norm(img_q, img_k, img_v)
@@ -171,8 +178,9 @@ class DoubleStreamBlock(nn.Module):
         yield ("img_qkv", img_qkv)
 
         # prepare txt for attention
-        txt_modulated = self.txt_norm1(txt)
-        txt_modulated = (1 + txt_mod1.scale) * txt_modulated + txt_mod1.shift
+        txt_normed = self.txt_norm1(txt)
+        txt_modulated = (1 + txt_mod1.scale) * txt_normed + txt_mod1.shift
+        yield ("txt_mod", dict(txt_normed=txt_normed, txt_modulated=txt_modulated))
         txt_qkv = self.txt_attn.qkv(txt_modulated)
         txt_q, txt_k, txt_v = rearrange(txt_qkv, "B L (K H D) -> K B H L D", K=3, H=self.num_heads)
         txt_q, txt_k = self.txt_attn.norm(txt_q, txt_k, txt_v)

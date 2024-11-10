@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 import torch
 from torch import Tensor, nn
+from tqdm.auto import tqdm
 
 from flux.modules.layers import (DoubleStreamBlock, EmbedND, LastLayer,
                                  MLPEmbedder, SingleStreamBlock,
@@ -105,40 +106,40 @@ class Flux(nn.Module):
 
         yield ("pre_double", dict(img=img, txt=txt, vec=vec, pe=pe))
 
-        # for i, block in enumerate(self.double_blocks):
-        #     for tag, data in block(img=img, txt=txt, vec=vec, pe=pe):
-        #         if i == 0:
-        #             t = tag
-        #             if t:
-        #                 t = "_" + t
-        #             yield ("first_double" + t, data)
-        #         if tag == "":
-        #             img, txt = data["img"], data["txt"]
-        #         t = tag
-        #         if t:
-        #             t = "." + t
-        #         yield (f"double_block.{i}{t}", data)
+        for i, block in enumerate(tqdm(self.double_blocks)):
+            for tag, data in block(img=img, txt=txt, vec=vec, pe=pe):
+                if i == 0:
+                    t = tag
+                    if t:
+                        t = "_" + t
+                    yield ("first_double" + t, data)
+                if tag == "":
+                    img, txt = data["img"], data["txt"]
+                t = tag
+                if t:
+                    t = "." + t
+                yield (f"double_block.{i}{t}", data)
 
 
         img = torch.cat((txt, img), 1)
         yield ("pre_single", dict(data=img))
-        # for block in self.single_blocks:
-        #     yield ("single_block", dict(img=img, vec=vec, pe=pe))
-        #     img = block(img, vec=vec, pe=pe)
+        for block in self.single_blocks:
+            yield ("single_block", dict(img=img, vec=vec, pe=pe))
+            img = block(img, vec=vec, pe=pe)
         
-        # for i, block in enumerate(self.single_blocks):
-        #     for tag, data in block(img, vec=vec, pe=pe):
-        #         if i == 0:
-        #             t = tag
-        #             if t:
-        #                 t = "_" + t
-        #             yield ("first_single" + t, data)
-        #         if tag == "":
-        #             img, txt = data["img"], data["txt"]
-        #         t = tag
-        #         if t:
-        #             t = "." + t
-        #         yield (f"single_block.{i}{t}", data)
+        for i, block in enumerate(tqdm(self.single_blocks)):
+            for tag, data in block(img, vec=vec, pe=pe):
+                if i == 0:
+                    t = tag
+                    if t:
+                        t = "_" + t
+                    yield ("first_single" + t, data)
+                if tag == "":
+                    img, txt = data["img"], data["txt"]
+                t = tag
+                if t:
+                    t = "." + t
+                yield (f"single_block.{i}{t}", data)
         img = img[:, txt.shape[1] :, ...]
         
         yield ("pre_final", dict(data=img))
