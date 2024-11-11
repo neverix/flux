@@ -170,6 +170,7 @@ class DoubleStreamBlock(nn.Module):
         # prepare image for attention
         img_normed = self.img_norm1(img)
         img_modulated = (1 + img_mod1.scale) * img_normed + img_mod1.shift
+        # img_modulated = img_normed
         yield ("img_mod", dict(img_normed=img_normed, img_modulated=img_modulated))
         img_qkv = self.img_attn.qkv(img_modulated)
         img_q, img_k, img_v = rearrange(img_qkv, "B L (K H D) -> K B H L D", K=3, H=self.num_heads)
@@ -180,6 +181,7 @@ class DoubleStreamBlock(nn.Module):
         # prepare txt for attention
         txt_normed = self.txt_norm1(txt)
         txt_modulated = (1 + txt_mod1.scale) * txt_normed + txt_mod1.shift
+        # txt_modulated = txt_normed
         yield ("txt_mod", dict(txt_normed=txt_normed, txt_modulated=txt_modulated))
         txt_qkv = self.txt_attn.qkv(txt_modulated)
         txt_q, txt_k, txt_v = rearrange(txt_qkv, "B L (K H D) -> K B H L D", K=3, H=self.num_heads)
@@ -252,11 +254,14 @@ class SingleStreamBlock(nn.Module):
 
         # compute attention
         attn = attention(q, k, v, pe=pe)
-        yield ("attn_pre", dict(attn_pre=attn))
         mlp= self.mlp_act(mlp)
-        yield ("mlp_pre", dict(mlp_pre=mlp))
+        mlp_out = self.linear2(torch.cat((attn * 0, mlp), 2))
+        yield ("mlp_pre", dict(mlp_pre=mlp, mlp_out=mlp_out))
+        attn_out = self.linear2(torch.cat((attn, mlp * 0), 2))
+        yield ("attn_pre", dict(attn_pre=attn, attn_out=attn_out))
         # compute activation in mlp stream, cat again and run second linear layer
         output = self.linear2(torch.cat((attn, mlp), 2))
+        yield("pre_out", dict(out=output, gate=mod.gate))
         output = x + mod.gate * output
         yield ("out", dict(out=output))
         return output

@@ -92,12 +92,19 @@ class Flux(nn.Module):
 
         # running on sequences img
         img = self.img_in(img)
-        vec = self.time_in(timestep_embedding(timesteps, 256))
+        time_emb = timestep_embedding(timesteps, 256)
+        yield ("pre_basic_vec", dict(y=y, time_emb=time_emb))
+        vec = self.time_in(time_emb)
+        yield ("basic_vec", dict(vec=vec))
         if self.params.guidance_embed:
             if guidance is None:
                 raise ValueError("Didn't get guidance strength for guidance distilled model.")
-            vec = vec + self.guidance_in(timestep_embedding(guidance, 256))
+            g_emb = timestep_embedding(guidance, 256)
+            yield ("guidance_emb", dict(g_emb=g_emb, guidance=guidance))
+            vec = vec + self.guidance_in(g_emb)
+        yield ("guidance_vec", dict(vec=vec))
         vec = vec + self.vector_in(y)
+        yield ("vec", dict(vec=vec))
         txt = self.txt_in(txt)
 
         ids = torch.cat((txt_ids, img_ids), dim=1)
@@ -106,7 +113,10 @@ class Flux(nn.Module):
 
         yield ("pre_double", dict(img=img, txt=txt, vec=vec, pe=pe))
 
-        for i, block in enumerate(tqdm(self.double_blocks)):
+        for i, block in enumerate(tqdm(
+            self.double_blocks
+            # []
+            )):
             for tag, data in block(img=img, txt=txt, vec=vec, pe=pe):
                 if i == 0:
                     t = tag
@@ -123,9 +133,6 @@ class Flux(nn.Module):
 
         img = torch.cat((txt, img), 1)
         yield ("pre_single", dict(data=img))
-        for block in self.single_blocks:
-            yield ("single_block", dict(img=img, vec=vec, pe=pe))
-            img = block(img, vec=vec, pe=pe)
         
         for i, block in enumerate(tqdm(self.single_blocks)):
             for tag, data in block(img, vec=vec, pe=pe):
@@ -135,7 +142,7 @@ class Flux(nn.Module):
                         t = "_" + t
                     yield ("first_single" + t, data)
                 if tag == "":
-                    img, txt = data["img"], data["txt"]
+                    img = data["img"]
                 t = tag
                 if t:
                     t = "." + t
