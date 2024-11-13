@@ -207,6 +207,8 @@ class DoubleStreamBlock(nn.Module):
         txt = txt + txt_mod1.gate * self.txt_attn.proj(txt_attn)
         yield ("txt_gated", dict(txt=txt))
         txt = txt + txt_mod2.gate * self.txt_mlp((1 + txt_mod2.scale) * self.txt_norm2(txt) + txt_mod2.shift)
+        
+        yield ("", dict(img=img, txt=txt))
         return img, txt
 
 
@@ -264,6 +266,7 @@ class SingleStreamBlock(nn.Module):
         yield("pre_out", dict(out=output, gate=mod.gate))
         output = x + mod.gate * output
         yield ("out", dict(out=output))
+        yield ("", dict(img=output))
         return output
 
 
